@@ -34,6 +34,11 @@ type Config struct {
 
 	// Producer specific parameters
 	FlushInterval time.Duration `envconfig:"KAFKA_FLUSH_INTERVAL"`
+
+	// Schema Registry server
+	SchemaRegistryServers string `envconfig:"KAFKA_SCHEMA_REGISTRY_SERVERS"`
+
+	IsolationLevel string `envconfig:"KAFKA_ISOLATION_LEVEL"`
 }
 
 // returns a new kafka.Config with reasonable defaults for some values
@@ -91,6 +96,15 @@ func configureConsumer(envConf Config) (*sarama.Config, error) {
 		saramaConf.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRange
 	default:
 		return nil, errors.Errorf("unrecognized consumer group partition strategy: %s", envConf.RebalanceStrategy)
+	}
+	// configure group rebalance strategy
+	switch envConf.IsolationLevel {
+	case "ReadUncommitted":
+		saramaConf.Consumer.IsolationLevel = sarama.ReadUncommitted
+	case "ReadCommitted":
+		saramaConf.Consumer.IsolationLevel = sarama.ReadCommitted
+	default:
+		saramaConf.Consumer.IsolationLevel = sarama.ReadUncommitted
 	}
 
 	// conf init offsets default: only honored if brokers on Kafka side have no pre-stored offsets for group

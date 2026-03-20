@@ -8,7 +8,7 @@ import (
 
 	"crypto/sha256"
 	"crypto/sha512"
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	from_env "github.com/kelseyhightower/envconfig"
 	"github.com/pkg/errors"
 	"github.com/xdg/scram"

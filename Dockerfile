@@ -1,6 +1,6 @@
 FROM golang:1.22.0
 
-WORKDIR /go/src/github.com/apiloqbc/sarama-easy
+WORKDIR /go/src/github.com/Cuebiq/sarama-easy
 
 ADD . .
 

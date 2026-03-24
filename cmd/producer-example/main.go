@@ -4,7 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/apiloqbc/sarama-easy/kafka"
+	"github.com/Cuebiq/sarama-easy/kafka"
 	"github.com/kelseyhightower/envconfig"
 	"log"
 	"os"

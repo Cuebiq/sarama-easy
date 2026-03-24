@@ -1,4 +1,4 @@
-module github.com/apiloqbc/sarama-easy
+module github.com/Cuebiq/sarama-easy
 
 go 1.23.0
 

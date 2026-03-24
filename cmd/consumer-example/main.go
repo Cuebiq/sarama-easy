@@ -7,7 +7,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/apiloqbc/sarama-easy/kafka"
+	"github.com/Cuebiq/sarama-easy/kafka"
 )
 
 var conf kafka.Config

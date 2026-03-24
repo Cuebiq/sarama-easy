@@ -220,11 +220,14 @@ func (client *SchemaRegistryClient) httpCall(method, uri string, payload io.Read
 		if err != nil {
 			return nil, err
 		}
-		defer resp.Body.Close()
-		if !okStatus(resp) {
-			return nil, newError(resp)
-		}
-		return io.ReadAll(resp.Body)
+		body, err := func() ([]byte, error) {
+			defer resp.Body.Close()
+			if !okStatus(resp) {
+				return nil, newError(resp)
+			}
+			return io.ReadAll(resp.Body)
+		}()
+		return body, err
 	}
 }
 

@@ -174,7 +174,7 @@ func createProducer(conf Config, logger *log.Logger) (sarama.AsyncProducer, erro
 		sarama.Logger = logger
 	}
 
-	cfg, err := configureProducer(conf)
+	cfg, err := configureProducer(&conf)
 	if err != nil {
 		return nil, err
 	}

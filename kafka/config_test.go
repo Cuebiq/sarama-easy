@@ -73,7 +73,7 @@ func TestConfigureConsumer_ValidConfig(t *testing.T) {
 	conf := NewKafkaConfig()
 	conf.Topics = "test-topic"
 
-	saramaConf, err := configureConsumer(conf)
+	saramaConf, err := configureConsumer(&conf)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -92,7 +92,7 @@ func TestConfigureConsumer_InvalidVersion(t *testing.T) {
 	conf := NewKafkaConfig()
 	conf.Version = "invalid"
 
-	_, err := configureConsumer(conf)
+	_, err := configureConsumer(&conf)
 	if err == nil {
 		t.Fatal("expected error for invalid Kafka version")
 	}
@@ -102,7 +102,7 @@ func TestConfigureConsumer_InvalidRebalanceStrategy(t *testing.T) {
 	conf := NewKafkaConfig()
 	conf.RebalanceStrategy = "unknown"
 
-	_, err := configureConsumer(conf)
+	_, err := configureConsumer(&conf)
 	if err == nil {
 		t.Fatal("expected error for invalid rebalance strategy")
 	}
@@ -112,7 +112,7 @@ func TestConfigureConsumer_InvalidInitOffsets(t *testing.T) {
 	conf := NewKafkaConfig()
 	conf.InitOffsets = "invalid"
 
-	_, err := configureConsumer(conf)
+	_, err := configureConsumer(&conf)
 	if err == nil {
 		t.Fatal("expected error for invalid init offsets")
 	}
@@ -122,7 +122,7 @@ func TestConfigureConsumer_RangeStrategy(t *testing.T) {
 	conf := NewKafkaConfig()
 	conf.RebalanceStrategy = "range"
 
-	saramaConf, err := configureConsumer(conf)
+	saramaConf, err := configureConsumer(&conf)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -147,7 +147,7 @@ func TestConfigureConsumer_IsolationLevels(t *testing.T) {
 			conf := NewKafkaConfig()
 			conf.IsolationLevel = tt.level
 
-			saramaConf, err := configureConsumer(conf)
+			saramaConf, err := configureConsumer(&conf)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -162,7 +162,7 @@ func TestConfigureConsumer_EarliestOffsets(t *testing.T) {
 	conf := NewKafkaConfig()
 	conf.InitOffsets = "earliest"
 
-	saramaConf, err := configureConsumer(conf)
+	saramaConf, err := configureConsumer(&conf)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -174,7 +174,7 @@ func TestConfigureConsumer_EarliestOffsets(t *testing.T) {
 func TestConfigureProducer_ValidConfig(t *testing.T) {
 	conf := NewKafkaConfig()
 
-	saramaConf, err := configureProducer(conf)
+	saramaConf, err := configureProducer(&conf)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -196,7 +196,7 @@ func TestConfigureProducer_InvalidVersion(t *testing.T) {
 	conf := NewKafkaConfig()
 	conf.Version = "not-a-version"
 
-	_, err := configureProducer(conf)
+	_, err := configureProducer(&conf)
 	if err == nil {
 		t.Fatal("expected error for invalid Kafka version")
 	}
@@ -206,7 +206,7 @@ func TestConfigureSasl_Disabled(t *testing.T) {
 	conf := NewKafkaConfig()
 	conf.SaslEnabled = false
 
-	saramaConf, _ := configureConsumer(conf)
+	saramaConf, _ := configureConsumer(&conf)
 	if saramaConf.Net.SASL.Enable {
 		t.Error("expected SASL to be disabled")
 	}
@@ -219,7 +219,7 @@ func TestConfigureSasl_EnabledSCRAMSHA256(t *testing.T) {
 	conf.Username = "user"
 	conf.Password = "pass"
 
-	saramaConf, _ := configureConsumer(conf)
+	saramaConf, _ := configureConsumer(&conf)
 	if !saramaConf.Net.SASL.Enable {
 		t.Error("expected SASL to be enabled")
 	}
@@ -238,7 +238,7 @@ func TestConfigureSasl_EnabledSCRAMSHA512(t *testing.T) {
 	conf.Username = "user"
 	conf.Password = "pass"
 
-	saramaConf, _ := configureConsumer(conf)
+	saramaConf, _ := configureConsumer(&conf)
 	if !saramaConf.Net.SASL.Enable {
 		t.Error("expected SASL to be enabled")
 	}
@@ -251,7 +251,7 @@ func TestConfigureTLS_DisabledDoesNothing(t *testing.T) {
 	conf := Config{TLSEnabled: false}
 	saramaConf := sarama.NewConfig()
 
-	err := configureTLS(conf, saramaConf)
+	err := configureTLS(&conf, saramaConf)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -274,7 +274,7 @@ func TestConfigureTLS_EnabledMissingCerts(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			saramaConf := sarama.NewConfig()
-			err := configureTLS(tt.conf, saramaConf)
+			err := configureTLS(&tt.conf, saramaConf)
 			if err == nil {
 				t.Fatal("expected error when TLS enabled with missing cert fields")
 			}

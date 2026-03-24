@@ -10,6 +10,7 @@ type Handler interface {
 // NoOpHandler is a Handler implementation that discards all messages.
 // Useful for testing or when only side effects of consuming (e.g. offset commits) matter.
 var NoOpHandler = &noOpHandler{}
+
 type noOpHandler struct{}
 
 func (h *noOpHandler) Handle(kmsg *Message) error {

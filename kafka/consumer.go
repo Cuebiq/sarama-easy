@@ -64,7 +64,7 @@ func NewConsumer(ctx context.Context, conf Config, handler Handler, logger *log.
 		sarama.Logger = logger
 	}
 
-	saramaConf, err := configureConsumer(conf)
+	saramaConf, err := configureConsumer(&conf)
 	if err != nil {
 		return nil, err
 	}

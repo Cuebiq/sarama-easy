@@ -95,7 +95,7 @@ func FromEnv() (Config, error) {
 const errorQueueSize = 32
 
 // apply env config properties to a Sarama consumer config
-func configureConsumer(envConf Config) (*sarama.Config, error) {
+func configureConsumer(envConf *Config) (*sarama.Config, error) {
 	saramaConf := sarama.NewConfig()
 	saramaConf.Net.TLS.Enable = envConf.TLSEnabled
 	configureSasl(envConf, saramaConf)
@@ -121,9 +121,9 @@ func configureConsumer(envConf Config) (*sarama.Config, error) {
 	// configure group rebalance strategy
 	switch envConf.RebalanceStrategy {
 	case "roundrobin":
-		saramaConf.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRoundRobin
+		saramaConf.Consumer.Group.Rebalance.Strategy = sarama.NewBalanceStrategyRoundRobin()
 	case "range":
-		saramaConf.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRange
+		saramaConf.Consumer.Group.Rebalance.Strategy = sarama.NewBalanceStrategyRange()
 	default:
 		return nil, fmt.Errorf("unrecognized consumer group partition strategy: %s", envConf.RebalanceStrategy)
 	}
@@ -150,7 +150,7 @@ func configureConsumer(envConf Config) (*sarama.Config, error) {
 	return saramaConf, nil
 }
 
-func configureSasl(envConf Config, saramaConf *sarama.Config) {
+func configureSasl(envConf *Config, saramaConf *sarama.Config) {
 	if envConf.SaslEnabled {
 		saramaConf.Net.SASL.Enable = envConf.SaslEnabled
 		saramaConf.Net.SASL.Mechanism = sarama.SASLMechanism(envConf.SaslMechanism)
@@ -204,7 +204,7 @@ func (x *XDGSCRAMClient) Done() bool {
 }
 
 // apply env config properties into a Sarama producer config
-func configureProducer(envConf Config) (*sarama.Config, error) {
+func configureProducer(envConf *Config) (*sarama.Config, error) {
 	saramaConf := sarama.NewConfig()
 	saramaConf.Net.TLS.Enable = envConf.TLSEnabled
 	configureSasl(envConf, saramaConf)
@@ -218,7 +218,7 @@ func configureProducer(envConf Config) (*sarama.Config, error) {
 		return nil, err
 	}
 
-	// Produce side configs (TODO: tune and customize more settings if needed)
+	// Producer side configs (TODO: tune and customize more settings if needed)
 	saramaConf.Version = version
 	saramaConf.ClientID = envConf.ClientID
 	saramaConf.Producer.RequiredAcks = sarama.WaitForLocal     // Only wait for the leader to ack
@@ -231,7 +231,7 @@ func configureProducer(envConf Config) (*sarama.Config, error) {
 }
 
 // side effect TLS setup into Sarama config if env config specifies to do so
-func configureTLS(envConf Config, saramaConf *sarama.Config) error {
+func configureTLS(envConf *Config, saramaConf *sarama.Config) error {
 	if !envConf.TLSEnabled {
 		return nil
 	}

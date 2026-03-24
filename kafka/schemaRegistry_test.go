@@ -25,7 +25,7 @@ func TestGetSchema_Success(t *testing.T) {
 			t.Errorf("unexpected path: %s", r.URL.Path)
 		}
 		resp := schemaResponse{Schema: avroSchema}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	})
 	defer server.Close()
 
@@ -42,7 +42,7 @@ func TestGetSchema_Success(t *testing.T) {
 func TestGetSchema_NotFound(t *testing.T) {
 	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(Error{ErrorCode: 40403, Message: "Schema not found"})
+		_ = json.NewEncoder(w).Encode(Error{ErrorCode: 40403, Message: "Schema not found"})
 	})
 	defer server.Close()
 
@@ -58,7 +58,7 @@ func TestGetSubjects_Success(t *testing.T) {
 		if r.URL.Path != "/subjects" {
 			t.Errorf("unexpected path: %s", r.URL.Path)
 		}
-		json.NewEncoder(w).Encode([]string{"subject1", "subject2"})
+		_ = json.NewEncoder(w).Encode([]string{"subject1", "subject2"})
 	})
 	defer server.Close()
 
@@ -80,7 +80,7 @@ func TestGetVersions_Success(t *testing.T) {
 		if r.URL.Path != "/subjects/test-subject/versions" {
 			t.Errorf("unexpected path: %s", r.URL.Path)
 		}
-		json.NewEncoder(w).Encode([]int{1, 2, 3})
+		_ = json.NewEncoder(w).Encode([]int{1, 2, 3})
 	})
 	defer server.Close()
 
@@ -103,7 +103,7 @@ func TestGetSchemaByVersion_Success(t *testing.T) {
 			Schema:  avroSchema,
 			ID:      10,
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	})
 	defer server.Close()
 
@@ -129,7 +129,7 @@ func TestGetLatestSchema_Success(t *testing.T) {
 			Schema:  avroSchema,
 			ID:      10,
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	})
 	defer server.Close()
 
@@ -148,7 +148,7 @@ func TestCreateSubject_Success(t *testing.T) {
 		if r.Method != "POST" {
 			t.Errorf("expected POST, got %s", r.Method)
 		}
-		json.NewEncoder(w).Encode(idResponse{ID: 42})
+		_ = json.NewEncoder(w).Encode(idResponse{ID: 42})
 	})
 	defer server.Close()
 
@@ -173,7 +173,7 @@ func TestDeleteSubject_Success(t *testing.T) {
 		if r.URL.Path != "/subjects/test-subject" {
 			t.Errorf("unexpected path: %s", r.URL.Path)
 		}
-		json.NewEncoder(w).Encode([]int{1, 2})
+		_ = json.NewEncoder(w).Encode([]int{1, 2})
 	})
 	defer server.Close()
 
@@ -209,7 +209,7 @@ func TestHttpCall_Retry5XX(t *testing.T) {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
-		json.NewEncoder(w).Encode([]string{"ok"})
+		_ = json.NewEncoder(w).Encode([]string{"ok"})
 	})
 	defer server.Close()
 
@@ -232,12 +232,12 @@ func TestHttpCall_ContentType(t *testing.T) {
 		if ct != contentType {
 			t.Errorf("expected content type '%s', got '%s'", contentType, ct)
 		}
-		json.NewEncoder(w).Encode([]string{})
+		_ = json.NewEncoder(w).Encode([]string{})
 	})
 	defer server.Close()
 
 	client := NewSchemaRegistryClient([]string{server.URL})
-	client.GetSubjects()
+	_, _ = client.GetSubjects()
 }
 
 func TestRetriable(t *testing.T) {
@@ -292,7 +292,7 @@ func TestCachedGetSchema_CachesResult(t *testing.T) {
 	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
 		calls++
 		resp := schemaResponse{Schema: avroSchema}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	})
 	defer server.Close()
 
@@ -327,7 +327,7 @@ func TestCachedCreateSubject_CachesResult(t *testing.T) {
 	calls := 0
 	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
 		calls++
-		json.NewEncoder(w).Encode(idResponse{ID: 7})
+		_ = json.NewEncoder(w).Encode(idResponse{ID: 7})
 	})
 	defer server.Close()
 
@@ -373,7 +373,7 @@ func TestCachedGetSchema_ConcurrentDoubleCheck(t *testing.T) {
 		calls++
 		// Simulate slow response to increase contention window
 		resp := schemaResponse{Schema: avroSchema}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	})
 	defer server.Close()
 
@@ -416,7 +416,7 @@ func TestCachedGetSchema_TTLExpiration(t *testing.T) {
 	server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
 		calls++
 		resp := schemaResponse{Schema: avroSchema}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	})
 	defer server.Close()
 

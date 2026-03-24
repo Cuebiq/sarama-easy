@@ -108,7 +108,7 @@ func main() {
 		logger.Printf("Sending message %d", i+1)
 
 		if err := producer.Send(msg); err != nil {
-			logger.Printf(err.Error()) // only happens if context is cancelled while Send() is blocked on full queue
+			logger.Print(err.Error()) // only happens if context is cancelled while Send() is blocked on full queue
 			break
 		}
 	}
@@ -119,7 +119,7 @@ func main() {
 		Key:   []byte("poison pill"),
 		Value: []byte{},
 	}
-	producer.Send(pill)
+	_ = producer.Send(pill)
 
 	// signal the producer's background client to gracefully shut down
 	cancelable()

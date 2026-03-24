@@ -1,11 +1,15 @@
-FROM golang:1.22.0
+FROM golang:1.23.0 AS builder
 
 WORKDIR /go/src/github.com/Cuebiq/sarama-easy
 
-ADD . .
+COPY go.mod go.sum ./
+RUN go mod download
 
-ENV GO111MODULE=on
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /go/bin/ ./...
 
-RUN mkdir -p bin && go build -o bin/ ./...
+FROM gcr.io/distroless/static-debian12
 
-CMD ["echo use docker-compose up to run the examples"]
+COPY --from=builder /go/bin/ /usr/local/bin/
+
+CMD ["echo", "use docker-compose up to run the examples"]

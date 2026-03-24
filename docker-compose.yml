@@ -1,21 +1,27 @@
-version: '3.4'
-
 services:
   zoo1:
-    image: confluentinc/cp-zookeeper:6.2.1
+    image: confluentinc/cp-zookeeper:7.5.0
     hostname: zoo1
     container_name: zoo1
+    platform: linux/amd64
     ports:
       - "2181:2181"
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_SERVER_ID: 1
       ZOOKEEPER_SERVERS: zoo1:2888:3888
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/commands/ruok || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   kafka1:
-    image: confluentinc/cp-kafka:6.2.1
+    image: confluentinc/cp-kafka:7.5.0
     hostname: kafka1
-    user: "appuser:appuser"
+    container_name: kafka1
+    platform: linux/amd64
     ports:
       - "9092:9092"
       - "9999:9999"
@@ -32,17 +38,32 @@ services:
       KAFKA_JMX_PORT: 9999
       KAFKA_JMX_HOSTNAME: ${DOCKER_HOST_IP:-127.0.0.1}
     depends_on:
-      - zoo1
+      zoo1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
 
   kafka-schema-registry:
-    image: confluentinc/cp-schema-registry:6.2.1
+    image: confluentinc/cp-schema-registry:7.5.0
     hostname: kafka-schema-registry
+    container_name: kafka-schema-registry
+    platform: linux/amd64
     depends_on:
-      - zoo1
-      - kafka1
+      kafka1:
+        condition: service_healthy
     ports:
       - "8081:8081"
     environment:
       SCHEMA_REGISTRY_HOST_NAME: kafka-schema-registry
-      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: 'PLAINTEXT://kafka1:19092,PLAINTEXT://kafka2:19093,PLAINTEXT://kafka3:19094'
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: 'PLAINTEXT://kafka1:19092'
       SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8081/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s

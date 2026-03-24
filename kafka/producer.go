@@ -3,28 +3,52 @@ package kafka
 import (
 	"context"
 	"encoding/binary"
-	"github.com/linkedin/goavro/v2"
+	"errors"
+	"fmt"
 	"log"
 	"strings"
 
 	"github.com/IBM/sarama"
-	"github.com/pkg/errors"
+	"github.com/linkedin/goavro/v2"
 )
 
-// abstracts kafka.Producer message type
+// ProducerMessage is a simplified message type for sending data to Kafka.
+// At least one of Key or Value must be non-empty.
 type ProducerMessage struct {
 	Topic string
 	Key   []byte
 	Value []byte
 }
 
+// Producer provides a high-level interface for asynchronously producing
+// messages to Kafka.
 type Producer interface {
-	// caller should run the returned function in a goroutine, and consume
-	// the returned error channel until it's closed at shutdown.
+	// Background returns a blocking function and an error channel. The caller
+	// should run the function in a goroutine and consume the error channel
+	// until it is closed (which signals shutdown is complete).
 	Background() (func(), chan error)
 
-	// user-facing event emit API
+	// Send queues a message for async delivery to Kafka. Returns an error
+	// if the message fails validation or if the context has been cancelled.
 	Send(ProducerMessage) error
+
+	// SendAvroMsg queues a pre-built sarama ProducerMessage (typically Avro-encoded
+	// using AvroEncoder) for async delivery. Returns an error if the context
+	// has been cancelled.
+	SendAvroMsg(*sarama.ProducerMessage) error
+}
+
+// Option configures optional parameters for NewProducer and NewConsumer.
+type Option func(*options)
+
+type options struct {
+	schemaRegistryClient SchemaRegistryClientInterface
+}
+
+// WithSchemaRegistryClient injects a pre-existing schema registry client,
+// allowing multiple producers/consumers to share the same client and cache.
+func WithSchemaRegistryClient(client SchemaRegistryClientInterface) Option {
+	return func(o *options) { o.schemaRegistryClient = client }
 }
 
 // internal type implementing kafka.Producer contract
@@ -33,26 +57,39 @@ type kafkaProducer struct {
 	conf Config
 
 	producer             sarama.AsyncProducer
-	SchemaRegistryClient *CachedSchemaRegistryClient
+	schemaRegistryClient SchemaRegistryClientInterface
 	errors               chan error
 	logger               *log.Logger
 }
 
-// the caller can cancel the producer's context to initiate shutdown.
-func NewProducer(ctx context.Context, conf Config, logger *log.Logger) (*kafkaProducer, error) {
+// NewProducer creates a Kafka producer. The caller can cancel the supplied context to initiate shutdown.
+// Pass WithSchemaRegistryClient to share a schema registry client across multiple producers/consumers.
+func NewProducer(ctx context.Context, conf *Config, logger *log.Logger, opts ...Option) (Producer, error) {
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
+
 	producer, err := createProducer(conf, logger)
 	if err != nil {
 		return nil, err
 	}
 
-	// config should have a CSV list of brokers
-	schemaRegistryServers := strings.Split(conf.SchemaRegistryServers, ",")
-	schemaRegistryClient := NewCachedSchemaRegistryClient(schemaRegistryServers)
+	srClient := o.schemaRegistryClient
+	if srClient == nil {
+		schemaRegistryServers := strings.Split(conf.SchemaRegistryServers, ",")
+		if len(schemaRegistryServers) == 0 || schemaRegistryServers[0] == "" {
+			return nil, errors.New("at least one Schema Registry server is required")
+		}
+		srClient = NewCachedSchemaRegistryClientWithOptions(
+			schemaRegistryServers, len(schemaRegistryServers), conf.SchemaRegistryTimeout, 0,
+		)
+	}
 	return &kafkaProducer{
-		conf:                 conf,
+		conf:                 *conf,
 		ctx:                  ctx,
 		producer:             producer,
-		SchemaRegistryClient: schemaRegistryClient,
+		schemaRegistryClient: srClient,
 		errors:               make(chan error, errorQueueSize),
 		logger:               logger,
 	}, nil
@@ -61,11 +98,11 @@ func NewProducer(ctx context.Context, conf Config, logger *log.Logger) (*kafkaPr
 // user-facing event emit API
 func (kp *kafkaProducer) Send(msg ProducerMessage) error {
 	if len(msg.Topic) == 0 {
-		return errors.New("message Topic is required")
+		return errors.New("message topic is required")
 	}
 
 	if len(msg.Key) == 0 && len(msg.Value) == 0 {
-		return errors.New("at least one of message fields Key or Value is required")
+		return errors.New("at least one of message fields key or value is required")
 	}
 
 	kmsg := &sarama.ProducerMessage{
@@ -77,7 +114,7 @@ func (kp *kafkaProducer) Send(msg ProducerMessage) error {
 	// if shutdown is triggered, drop the message
 	select {
 	case <-kp.ctx.Done():
-		return errors.Wrapf(kp.ctx.Err(), "message lost: shutdown triggered during send")
+		return fmt.Errorf("message lost: shutdown triggered during send: %w", kp.ctx.Err())
 
 	case kp.producer.Input() <- kmsg:
 		// fall through, msg has been queued for write
@@ -92,7 +129,7 @@ func (kp *kafkaProducer) SendAvroMsg(msg *sarama.ProducerMessage) error {
 	// if shutdown is triggered, drop the message
 	select {
 	case <-kp.ctx.Done():
-		return errors.Wrapf(kp.ctx.Err(), "message lost: shutdown triggered during send")
+		return fmt.Errorf("message lost: shutdown triggered during send: %w", kp.ctx.Err())
 
 	case kp.producer.Input() <- msg:
 		// fall through, msg has been queued for write
@@ -115,7 +152,15 @@ func (kp *kafkaProducer) Background() (func(), chan error) {
 
 	return func() {
 		defer func() {
-			kp.errors <- kp.producer.Close()
+			if err := kp.producer.Close(); err != nil {
+				// Non-blocking send: during shutdown the caller may have stopped
+				// consuming the error channel, so avoid deadlock.
+				select {
+				case kp.errors <- err:
+				default:
+					kp.logger.Printf("Kafka producer: close error dropped (channel full): %s", err)
+				}
+			}
 			close(kp.errors)
 		}()
 
@@ -124,7 +169,7 @@ func (kp *kafkaProducer) Background() (func(), chan error) {
 	}, kp.errors
 }
 
-func createProducer(conf Config, logger *log.Logger) (sarama.AsyncProducer, error) {
+func createProducer(conf *Config, logger *log.Logger) (sarama.AsyncProducer, error) {
 	if logger != nil {
 		sarama.Logger = logger
 	}
@@ -137,13 +182,15 @@ func createProducer(conf Config, logger *log.Logger) (sarama.AsyncProducer, erro
 	brokers := strings.Split(conf.Brokers, ",")
 	producer, err := sarama.NewAsyncProducer(brokers, cfg)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to create Kafka producer")
+		return nil, fmt.Errorf("failed to create Kafka producer: %w", err)
 	}
 
 	return producer, nil
 }
 
-// AvroEncoder encodes schemaId and Avro message.
+// AvroEncoder implements sarama.Encoder for Avro messages using the Confluent
+// wire format: 1 magic byte (0x00) + 4-byte big-endian schema ID + binary Avro payload.
+// Use this with sarama.ProducerMessage to send Avro-encoded messages.
 type AvroEncoder struct {
 	SchemaID int
 	Content  []byte
@@ -170,9 +217,10 @@ func (a *AvroEncoder) Length() int {
 	return 5 + len(a.Content)
 }
 
-// GetSchemaId get schema id from schema-registry service
+// GetSchemaId registers or retrieves the schema ID for the given topic from
+// the schema registry. The subject name is derived as "<topic>-value".
 func (ap *kafkaProducer) GetSchemaId(topic string, avroCodec *goavro.Codec) (int, error) {
-	schemaId, err := ap.SchemaRegistryClient.CreateSubject(topic+"-value", avroCodec)
+	schemaId, err := ap.schemaRegistryClient.CreateSubject(topic+"-value", avroCodec)
 	if err != nil {
 		return 0, err
 	}

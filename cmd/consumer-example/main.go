@@ -74,7 +74,7 @@ func main() {
 		logger:     logger,
 	}
 
-	consumer, err := kafka.NewConsumer(ctx, conf, handlers, logger)
+	consumer, err := kafka.NewConsumer(ctx, &conf, handlers, logger)
 	if err != nil {
 		logger.Fatal(err)
 	}

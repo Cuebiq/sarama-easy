@@ -72,7 +72,7 @@ func main() {
 
 	ctx, cancelable := context.WithCancel(context.Background())
 
-	producer, err := kafka.NewProducer(ctx, conf, logger)
+	producer, err := kafka.NewProducer(ctx, &conf, logger)
 	if err != nil {
 		logger.Fatal(err)
 	}

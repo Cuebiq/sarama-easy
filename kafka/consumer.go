@@ -53,7 +53,7 @@ type Message struct {
 
 // NewConsumer creates a Kafka consumer. The caller should cancel the supplied context for graceful shutdown.
 // Pass WithSchemaRegistryClient to share a schema registry client across multiple producers/consumers.
-func NewConsumer(ctx context.Context, conf Config, handler Handler, logger *log.Logger, opts ...Option) (Consumer, error) {
+func NewConsumer(ctx context.Context, conf *Config, handler Handler, logger *log.Logger, opts ...Option) (Consumer, error) {
 	var o options
 	for _, opt := range opts {
 		opt(&o)
@@ -64,7 +64,7 @@ func NewConsumer(ctx context.Context, conf Config, handler Handler, logger *log.
 		sarama.Logger = logger
 	}
 
-	saramaConf, err := configureConsumer(&conf)
+	saramaConf, err := configureConsumer(conf)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +92,7 @@ func NewConsumer(ctx context.Context, conf Config, handler Handler, logger *log.
 
 	return &kafkaConsumer{
 		ctx:                  ctx,
-		conf:                 conf,
+		conf:                 *conf,
 		consumer:             consumer,
 		schemaRegistryClient: srClient,
 		handler:              handler,

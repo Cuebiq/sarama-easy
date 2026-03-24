@@ -64,7 +64,7 @@ type kafkaProducer struct {
 
 // NewProducer creates a Kafka producer. The caller can cancel the supplied context to initiate shutdown.
 // Pass WithSchemaRegistryClient to share a schema registry client across multiple producers/consumers.
-func NewProducer(ctx context.Context, conf Config, logger *log.Logger, opts ...Option) (Producer, error) {
+func NewProducer(ctx context.Context, conf *Config, logger *log.Logger, opts ...Option) (Producer, error) {
 	var o options
 	for _, opt := range opts {
 		opt(&o)
@@ -86,7 +86,7 @@ func NewProducer(ctx context.Context, conf Config, logger *log.Logger, opts ...O
 		)
 	}
 	return &kafkaProducer{
-		conf:                 conf,
+		conf:                 *conf,
 		ctx:                  ctx,
 		producer:             producer,
 		schemaRegistryClient: srClient,
@@ -169,12 +169,12 @@ func (kp *kafkaProducer) Background() (func(), chan error) {
 	}, kp.errors
 }
 
-func createProducer(conf Config, logger *log.Logger) (sarama.AsyncProducer, error) {
+func createProducer(conf *Config, logger *log.Logger) (sarama.AsyncProducer, error) {
 	if logger != nil {
 		sarama.Logger = logger
 	}
 
-	cfg, err := configureProducer(&conf)
+	cfg, err := configureProducer(conf)
 	if err != nil {
 		return nil, err
 	}

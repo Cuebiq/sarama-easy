@@ -4,15 +4,17 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/linkedin/goavro/v2"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"time"
+
+	"github.com/linkedin/goavro/v2"
 )
 
-// SchemaRegistryClientInterface defines the api for all clients interfacing with schema registry
+// SchemaRegistryClientInterface defines the contract for clients that interact
+// with Confluent Schema Registry. Both SchemaRegistryClient and
+// CachedSchemaRegistryClient implement this interface.
 type SchemaRegistryClientInterface interface {
 	GetSchema(int) (*goavro.Codec, error)
 	GetSubjects() ([]string, error)
@@ -25,7 +27,8 @@ type SchemaRegistryClientInterface interface {
 	DeleteVersion(string, int) error
 }
 
-// SchemaRegistryClient is a basic http client to interact with schema registry
+// SchemaRegistryClient is an HTTP client for the Confluent Schema Registry REST API.
+// It supports automatic retries on 5XX errors with round-robin server selection.
 type SchemaRegistryClient struct {
 	SchemaRegistryConnect []string
 	httpClient            *http.Client
@@ -58,20 +61,26 @@ const (
 
 	contentType = "application/vnd.schemaregistry.v1+json"
 
-	timeout = 2 * time.Second
+	defaultTimeout = 2 * time.Second
 )
 
-// NewSchemaRegistryClient creates a client to talk with the schema registry at the connect string
-// By default it will retry failed requests (5XX responses and http errors) len(connect) number of times
+// NewSchemaRegistryClient creates a client to talk with the schema registry at the connect string.
+// By default it will retry failed requests (5XX responses and http errors) len(connect) number of times.
 func NewSchemaRegistryClient(connect []string) *SchemaRegistryClient {
-	client := &http.Client{
-		Timeout: timeout,
-	}
-	return &SchemaRegistryClient{connect, client, len(connect)}
+	return NewSchemaRegistryClientWithOptions(connect, len(connect), 0)
 }
 
-// NewSchemaRegistryClientWithRetries creates an http client with a configurable amount of retries on 5XX responses
+// NewSchemaRegistryClientWithRetries creates an http client with a configurable amount of retries on 5XX responses.
 func NewSchemaRegistryClientWithRetries(connect []string, retries int) *SchemaRegistryClient {
+	return NewSchemaRegistryClientWithOptions(connect, retries, 0)
+}
+
+// NewSchemaRegistryClientWithOptions creates a client with configurable retries and timeout.
+// A zero timeout uses the default of 2 seconds.
+func NewSchemaRegistryClientWithOptions(connect []string, retries int, timeout time.Duration) *SchemaRegistryClient {
+	if timeout <= 0 {
+		timeout = defaultTimeout
+	}
 	client := &http.Client{
 		Timeout: timeout,
 	}
@@ -81,11 +90,11 @@ func NewSchemaRegistryClientWithRetries(connect []string, retries int) *SchemaRe
 // GetSchema returns a goavro.Codec by unique id
 func (client *SchemaRegistryClient) GetSchema(id int) (*goavro.Codec, error) {
 	resp, err := client.httpCall("GET", fmt.Sprintf(schemaByID, id), nil)
-	if nil != err {
+	if err != nil {
 		return nil, err
 	}
 	schema, err := parseSchema(resp)
-	if nil != err {
+	if err != nil {
 		return nil, err
 	}
 	return goavro.NewCodec(schema.Schema)
@@ -94,7 +103,7 @@ func (client *SchemaRegistryClient) GetSchema(id int) (*goavro.Codec, error) {
 // GetSubjects returns a list of all subjects in the schema registry
 func (client *SchemaRegistryClient) GetSubjects() ([]string, error) {
 	resp, err := client.httpCall("GET", subjects, nil)
-	if nil != err {
+	if err != nil {
 		return []string{}, err
 	}
 	var result = []string{}
@@ -105,7 +114,7 @@ func (client *SchemaRegistryClient) GetSubjects() ([]string, error) {
 // GetVersions returns a list of the versions of a subject
 func (client *SchemaRegistryClient) GetVersions(subject string) ([]int, error) {
 	resp, err := client.httpCall("GET", fmt.Sprintf(subjectVersions, subject), nil)
-	if nil != err {
+	if err != nil {
 		return []int{}, err
 	}
 	var result = []int{}
@@ -115,12 +124,12 @@ func (client *SchemaRegistryClient) GetVersions(subject string) ([]int, error) {
 
 func (client *SchemaRegistryClient) getSchemaByVersionInternal(subject string, version string) (*goavro.Codec, error) {
 	resp, err := client.httpCall("GET", fmt.Sprintf(subjectByVersion, subject, version), nil)
-	if nil != err {
+	if err != nil {
 		return nil, err
 	}
 	var schema = new(schemaVersionResponse)
 	err = json.Unmarshal(resp, &schema)
-	if nil != err {
+	if err != nil {
 		return nil, err
 	}
 
@@ -202,19 +211,20 @@ func (client *SchemaRegistryClient) httpCall(method, uri string, payload io.Read
 		}
 		req.Header.Set("Content-Type", contentType)
 		resp, err := client.httpClient.Do(req)
-		if resp != nil {
-			defer resp.Body.Close()
-		}
 		if i < client.retries && (err != nil || retriable(resp)) {
+			if resp != nil {
+				resp.Body.Close()
+			}
 			continue
 		}
 		if err != nil {
 			return nil, err
 		}
+		defer resp.Body.Close()
 		if !okStatus(resp) {
 			return nil, newError(resp)
 		}
-		return ioutil.ReadAll(resp.Body)
+		return io.ReadAll(resp.Body)
 	}
 }
 

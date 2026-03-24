@@ -57,18 +57,17 @@ func init() {
 	flag.StringVar(&conf.SaslMechanism, "saslmechanism", conf.SaslMechanism, "SASL Mechanism")
 	flag.BoolVar(&conf.SaslEnabled, "saslEnabled", conf.SaslEnabled, "SASL enabled")
 
+	flag.StringVar(&topic, "topic", "mytopic", "Kafka topic to produce messages to")
 	flag.IntVar(&count, "count", 10, "Number of example messages to produce")
 
 	// Parse the command-line flags
 	flag.Parse()
 
 	// Log the final configuration for verification
-	log.Printf("Config: %+v\n", conf)
+	log.Printf("Config: %s\n", conf)
 }
 
 func main() {
-	flag.Parse()
-
 	logger := log.New(os.Stdout, "[example Kafka producer] ", log.LstdFlags|log.LUTC|log.Lshortfile)
 
 	ctx, cancelable := context.WithCancel(context.Background())

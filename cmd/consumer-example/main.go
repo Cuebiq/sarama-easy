@@ -57,12 +57,10 @@ func init() {
 	flag.Parse()
 
 	// Log the final configuration for verification
-	log.Printf("Config: %+v\n", conf)
+	log.Printf("Config: %s\n", conf)
 }
 
 func main() {
-	flag.Parse()
-
 	logger := log.New(os.Stdout, "[example Kafka consumer] ", log.LstdFlags|log.LUTC|log.Lshortfile)
 
 	// context can be canceled, initiating kafka.Consumer shutdown, from

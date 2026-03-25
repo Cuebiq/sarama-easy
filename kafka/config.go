@@ -230,14 +230,30 @@ func configureProducer(envConf *Config) (*sarama.Config, error) {
 	return saramaConf, nil
 }
 
-// side effect TLS setup into Sarama config if env config specifies to do so
+// configureTLS sets up TLS on the Sarama config. When TLS is enabled but no
+// custom certificates are provided, it uses the system trust store (suitable
+// for brokers with public CA certificates, e.g. AWS MSK with SASL_SSL).
+// When all three cert fields are set, it configures mutual TLS (mTLS).
 func configureTLS(envConf *Config, saramaConf *sarama.Config) error {
 	if !envConf.TLSEnabled {
 		return nil
 	}
 
-	if envConf.CACerts == "" || envConf.TLSCert == "" || envConf.TLSKey == "" {
-		return errors.New("TLS enabled but CACerts, TLSCert, and TLSKey are all required")
+	hasCACerts := envConf.CACerts != ""
+	hasTLSCert := envConf.TLSCert != ""
+	hasTLSKey := envConf.TLSKey != ""
+
+	// No custom certs: use system CA trust store (e.g. AWS MSK with public CAs)
+	if !hasCACerts && !hasTLSCert && !hasTLSKey {
+		saramaConf.Net.TLS.Config = &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		}
+		return nil
+	}
+
+	// Partial config: all three must be provided for mTLS
+	if !hasCACerts || !hasTLSCert || !hasTLSKey {
+		return errors.New("mTLS requires all three: CACerts, TLSCert, and TLSKey")
 	}
 
 	cert, err := tls.LoadX509KeyPair(envConf.TLSCert, envConf.TLSKey)
@@ -255,12 +271,10 @@ func configureTLS(envConf *Config, saramaConf *sarama.Config) error {
 		return fmt.Errorf("CA cert bundle at %s contains no valid PEM certificates", envConf.CACerts)
 	}
 
-	tlsCfg := &tls.Config{
+	saramaConf.Net.TLS.Config = &tls.Config{
 		Certificates: []tls.Certificate{cert},
 		RootCAs:      pool,
 		MinVersion:   tls.VersionTLS12,
 	}
-
-	saramaConf.Net.TLS.Config = tlsCfg
 	return nil
 }

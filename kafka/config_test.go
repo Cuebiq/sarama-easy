@@ -260,12 +260,30 @@ func TestConfigureTLS_DisabledDoesNothing(t *testing.T) {
 	}
 }
 
-func TestConfigureTLS_EnabledMissingCerts(t *testing.T) {
+func TestConfigureTLS_EnabledNoCerts_UsesSystemCA(t *testing.T) {
+	conf := Config{TLSEnabled: true}
+	saramaConf := sarama.NewConfig()
+
+	err := configureTLS(&conf, saramaConf)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if saramaConf.Net.TLS.Config == nil {
+		t.Fatal("expected non-nil TLS config")
+	}
+	if saramaConf.Net.TLS.Config.RootCAs != nil {
+		t.Error("expected nil RootCAs (system CA trust store)")
+	}
+	if len(saramaConf.Net.TLS.Config.Certificates) != 0 {
+		t.Error("expected no client certificates")
+	}
+}
+
+func TestConfigureTLS_PartialCerts_ReturnsError(t *testing.T) {
 	tests := []struct {
 		name string
 		conf Config
 	}{
-		{"missing all", Config{TLSEnabled: true}},
 		{"missing cert and key", Config{TLSEnabled: true, CACerts: "/tmp/ca.pem"}},
 		{"missing ca and key", Config{TLSEnabled: true, TLSCert: "/tmp/cert.pem"}},
 		{"missing ca and cert", Config{TLSEnabled: true, TLSKey: "/tmp/key.pem"}},
@@ -276,9 +294,9 @@ func TestConfigureTLS_EnabledMissingCerts(t *testing.T) {
 			saramaConf := sarama.NewConfig()
 			err := configureTLS(&tt.conf, saramaConf)
 			if err == nil {
-				t.Fatal("expected error when TLS enabled with missing cert fields")
+				t.Fatal("expected error when TLS enabled with partial cert fields")
 			}
-			if !strings.Contains(err.Error(), "TLS enabled but") {
+			if !strings.Contains(err.Error(), "mTLS requires all three") {
 				t.Errorf("unexpected error message: %s", err)
 			}
 		})

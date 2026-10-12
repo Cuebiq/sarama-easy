@@ -97,7 +97,12 @@ func (client *SchemaRegistryClient) GetSchema(id int) (*goavro.Codec, error) {
 	if err != nil {
 		return nil, err
 	}
-	return goavro.NewCodec(schema.Schema)
+	codec, err := goavro.NewCodec(schema.Schema)
+	if err != nil {
+		// the registry returned a schema goavro cannot compile: retrying won't help
+		return nil, Permanent(fmt.Errorf("invalid schema %d: %w", id, err))
+	}
+	return codec, nil
 }
 
 // GetSubjects returns a list of all subjects in the schema registry

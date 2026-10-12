@@ -1,8 +1,9 @@
 package kafka
 
 // Handler is the interface that consumers use to process incoming Kafka messages.
-// Implementations receive a decoded Message and should return an error only for
-// fatal conditions that should trigger consumer shutdown.
+// Implementations receive a decoded Message. A returned error is retried with
+// backoff (transient) unless wrapped with Permanent, which halts the partition
+// on that message. The message is marked consumed only when Handle returns nil.
 type Handler interface {
 	Handle(*Message) error
 }

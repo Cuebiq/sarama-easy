@@ -40,6 +40,9 @@ type Config struct {
 	RebalanceTimeout  time.Duration `envconfig:"KAFKA_REBALANCE_TIMEOUT"`
 	InitOffsets       string        `envconfig:"KAFKA_INIT_OFFSETS"`
 	CommitInterval    time.Duration `envconfig:"KAFKA_COMMIT_INTERVAL"`
+	// Backoff bounds for retrying a message after a transient error
+	RetryBackoff    time.Duration `envconfig:"KAFKA_RETRY_BACKOFF"`
+	MaxRetryBackoff time.Duration `envconfig:"KAFKA_MAX_RETRY_BACKOFF"`
 
 	// Producer specific parameters
 	FlushInterval time.Duration `envconfig:"KAFKA_FLUSH_INTERVAL"`
@@ -77,6 +80,8 @@ func NewKafkaConfig() Config {
 		RebalanceTimeout:  1 * time.Minute,
 		InitOffsets:       "latest",
 		CommitInterval:    10 * time.Second,
+		RetryBackoff:      500 * time.Millisecond,
+		MaxRetryBackoff:   30 * time.Second,
 		FlushInterval:     1 * time.Second,
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"log"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/IBM/sarama"
@@ -77,6 +78,9 @@ func TestProcessAvroMsg_InvalidSchemaId(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when schema registry is unreachable")
 	}
+	if IsPermanent(err) {
+		t.Errorf("an unreachable schema registry must be a transient error, got: %s", err)
+	}
 }
 
 func TestProcessAvroMsg_TooShort(t *testing.T) {
@@ -91,7 +95,10 @@ func TestProcessAvroMsg_TooShort(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for message shorter than 5 bytes")
 	}
-	if err.Error() != "message too short for Avro wire format (need at least 5 bytes)" {
+	if !IsPermanent(err) {
+		t.Errorf("expected a permanent error, got: %s", err)
+	}
+	if !strings.Contains(err.Error(), "message too short for Avro wire format (need at least 5 bytes)") {
 		t.Errorf("unexpected error: %s", err)
 	}
 }
@@ -108,7 +115,10 @@ func TestProcessAvroMsg_InvalidMagicByte(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for invalid magic byte")
 	}
-	if err.Error() != "invalid Avro magic byte: expected 0x00, got 0x01" {
+	if !IsPermanent(err) {
+		t.Errorf("expected a permanent error, got: %s", err)
+	}
+	if !strings.Contains(err.Error(), "invalid Avro magic byte: expected 0x00, got 0x01") {
 		t.Errorf("unexpected error: %s", err)
 	}
 }

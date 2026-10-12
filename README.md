@@ -86,9 +86,16 @@ type myHandler struct {
 
 func (h *myHandler) Handle(msg *kafka.Message) error {
     fmt.Printf("topic=%s key=%s value=%s\n", msg.Topic, msg.Key, msg.Value)
-    return nil // return error to trigger consumer shutdown
+    return nil
 }
 ```
+
+Messages are processed strictly in order and are never skipped:
+
+- a plain error returned by `Handle` (or a schema registry failure) is **transient**: the message is retried with exponential backoff (`RetryBackoff` up to `MaxRetryBackoff`) and is not marked as consumed;
+- an error wrapped with `kafka.Permanent(err)` (and any record that cannot be decoded: bad wire format, unknown schema id, payload not matching its schema) **halts the partition** on that message until the next session (rebalance or restart). Other partitions keep flowing.
+
+Register a `PartitionObserver` with `kafka.WithPartitionObserver` to be told about the assignment, each claim start (start offset and high-water mark, e.g. to compute readiness) and every halted partition.
 
 ## Configuration
 
@@ -105,6 +112,8 @@ All configuration fields can be set via environment variables, code, or CLI flag
 | `RebalanceTimeout` | `KAFKA_REBALANCE_TIMEOUT` | `1m` | Consumer rebalance timeout |
 | `InitOffsets` | `KAFKA_INIT_OFFSETS` | `latest` | `latest` or `earliest` |
 | `CommitInterval` | `KAFKA_COMMIT_INTERVAL` | `10s` | Auto-commit interval |
+| `RetryBackoff` | `KAFKA_RETRY_BACKOFF` | `500ms` | Initial backoff before retrying a message after a transient error |
+| `MaxRetryBackoff` | `KAFKA_MAX_RETRY_BACKOFF` | `30s` | Maximum backoff between retries |
 | `FlushInterval` | `KAFKA_FLUSH_INTERVAL` | `1s` | Producer flush interval |
 | `IsolationLevel` | `KAFKA_ISOLATION_LEVEL` | `ReadUncommitted` | `ReadUncommitted` or `ReadCommitted` |
 | `Verbose` | `KAFKA_VERBOSE` | `false` | Enable Sarama internal logging |

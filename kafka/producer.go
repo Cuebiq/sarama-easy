@@ -43,6 +43,7 @@ type Option func(*options)
 
 type options struct {
 	schemaRegistryClient SchemaRegistryClientInterface
+	partitionObserver    PartitionObserver
 }
 
 // WithSchemaRegistryClient injects a pre-existing schema registry client,
